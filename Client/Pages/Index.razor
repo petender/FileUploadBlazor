@@ -1,0 +1,75 @@
+﻿@page "/"
+@using System.Net.Http.Headers;
+@using FileUploadBlazor.Shared;
+@inject HttpClient Http;
+
+<PageTitle>File Upload Blazor</PageTitle>
+
+<h1>File Upload Blazor!</h1>
+
+Welcome. to the file upload part of your new app.
+<br>
+<br>
+<InputFile OnChange="@OnInputFileChange" multiple />
+
+
+
+
+@if (fileNames != null)
+{
+    <ul>
+        @foreach (var fileName in fileNames)
+        {
+            <li>File: @fileName</li>
+            <br>
+            <span>
+                Stored File Name: @GetStoredFileName(fileName)
+            </span>
+            
+        }
+    </ul>
+}
+
+@code{
+    private int maxAllowedFiles = int.MaxValue; 
+    private long maxFileSize = long.MaxValue;
+    private List<string> fileNames = new(); // List of file names
+    private List<UploadResult> uploadResults = new(); // List of upload results
+
+    private async Task OnInputFileChange(InputFileChangeEventArgs e)
+    {
+        using var content = new MultipartFormDataContent(); // Create a new MultipartFormDataContent
+
+        var files = e.GetMultipleFiles(); // Get the files from the InputFileChangeEventArgs
+        foreach (var file in files)
+        {
+            var fileContent = new StreamContent(file.OpenReadStream(maxFileSize)); 
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(file.ContentType);
+
+            fileNames.Add(file.Name); // Add file name to list
+
+            content.Add(
+                content: fileContent,
+                name: "files",
+                fileName: file.Name);
+
+        }
+
+        var response = await Http.PostAsync("api/File", content); // Send the request to the server
+        var newUploadResults = await response.Content.ReadFromJsonAsync<List<UploadResult>>(); // Get the response from the server
+
+        if (newUploadResults is not null)
+        {
+            uploadResults = uploadResults.Concat(newUploadResults).ToList(); // Add the new upload results to the list
+        }
+    }
+
+    private string? GetStoredFileName(string fileName)
+    {
+        var uploadResult = uploadResults.SingleOrDefault(f => f.FileName == fileName);
+        if (uploadResult is not null)
+            return uploadResult.StoredFileName;
+
+        return "File Not Found.";
+    }
+}
